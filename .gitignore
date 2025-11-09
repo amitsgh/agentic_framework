@@ -1,0 +1,103 @@
+# ----------------------------------------
+# Python general
+# ----------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Byte-compiled / optimized / DLL files
+*.so
+*.pyd
+*.pyo
+
+# Virtual environments
+env
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Unit test / coverage reports
+.coverage
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+coverage.xml
+*.cover
+*.log
+test-results/
+htmlcov/
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# FastAPI / Uvicorn specific logs
+*.db-journal
+*.sqlite3
+logs/
+*.log
+
+# Editor & IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+.DS_Store
+
+# MyPy / Pyright / Ruff
+.mypy_cache/
+.pytype/
+.dmypy.json
+ruff_cache/
+__pypackages__/
+
+# Local environment & configuration
+.env.local
+.env.*.local
+*.env
+config/local_settings.py
+*.secret
+
+# Database
+*.sqlite
+*.db
+
+# Docker
+docker-compose.override.yml
+.docker/
+*.pid
+*.sock
+
+# Alembic migrations (optional)
+alembic/versions/*.pyc
+alembic/versions/__pycache__/
+
+# Logs / temp
+tmp/
+temp/
+
+# cache folder
+cache
