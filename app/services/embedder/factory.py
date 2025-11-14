@@ -15,10 +15,10 @@ EMBEDDINGS_REGISTRY: dict[str, Type[BaseEmbeddings]] = {
 }
 
 
-def get_extractor_instance() -> BaseEmbeddings:
+def get_embeddings_instance() -> BaseEmbeddings:
     """Get extractor instance"""
 
-    embeddings_class = EMBEDDINGS_REGISTRY.get(config.EMBEDDINGS_TYPE)
+    embeddings_class = EMBEDDINGS_REGISTRY.get(config.EMBEDDINGS_TYPE.lower())
 
     if embeddings_class is None:
         logger.warning(

@@ -1,34 +1,131 @@
 """Ollama LLM Service"""
 
-from typing import Iterator
+from typing import List, Dict, Iterator
 
-from langchain_ollama import OllamaLLM
+import ollama
+from ollama import Client
 
 from app.services.llm.base import BaseLLM
+from app.core.exceptions.base import LLMError
 from app.core.config import config
+from app.core.logger import setuplog
+
+logger = setuplog(__name__)
+
 
 
 class OllamaModel(BaseLLM):
     """Ollama LLM Service"""
 
-    def __init__(self, model: str, base_url: str = "http://localhost:11434"):
+    def __init__(self, model: str, base_url: str | None = None):
         self.model = model or config.OLLAMA_MODEL
         self.base_url = base_url or config.OLLAMA_BASE_URL
+        self._client = None
+        self._model_loaded = False
 
     def load_model(self) -> None:
-        """Load Ollama Model"""
+        """Initialize Ollama model"""
 
-        self.llm = OllamaLLM(model=self.model, base_url=self.base_url)
+        if self._model_loaded:
+            logger.debug("Model %s already loaded", self.model)
+            return
 
-    def invoke(self, prompt: str) -> str:
-        """Generate response from prompt"""
+        try:
+            if self.base_url:
+                self._client = Client(host=self.base_url)
+            else:
+                self._client = Client()
 
-        response = self.llm.invoke(prompt)
-        return response
+            logger.info(
+                "Loading Ollama model: %s at %s", self.model, self.base_url or "default"
+            )
 
-    def stream(self, prompt: str) -> Iterator[str]:
-        """Generate stream of resposne"""
+            try:
+                models = ollama.list()
+                model_names = [m["name"] for m in models.get("models", [])]
+                if self.model not in model_names:
+                    logger.warning(
+                        "Model %s not found locally. It will be pulled on first use.",
+                        self.model,
+                    )
 
-        for chunk in self.llm.stream(prompt):
-            if chunk:
-                yield chunk
+            except Exception as e:
+                logger.warning("Could not verify model existence: %s", str(e))
+
+            self._model_loaded = True
+            logger.info("Ollama model %s initialized successfully", self.model)
+
+        except Exception as e:
+            logger.error("Failed to load Ollama model: %s", str(e))
+            raise LLMError(f"Failed to load Ollama model: {str(e)}") from e
+
+    def model_response(self, messages: List[Dict[str, str]]) -> str:
+        """Generate response"""
+
+        if not self._model_loaded:
+            self.load_model()
+
+        if not self._client:
+            raise LLMError(
+                "Ollama client is not initialized. Failed to connect or load model"
+            )
+
+        logger.info("Invoking Ollama chat model: %s", self.model)
+
+        try:
+            response = self._client.chat(
+                model=self.model,
+                messages=messages,
+            )
+
+            if isinstance(response, dict):
+                message = response.get("message", {})
+                content = message.get("content", "")
+                logger.debug("Received response of length: %d", len(content))
+                return content
+            else:
+                raise LLMError(f"Unexpected response format: {type(response)}")
+
+        except Exception as e:
+            logger.error(
+                "Error generating response with Ollama chat: %s", str(e), exc_info=True
+            )
+            raise LLMError(f"Error generating response: {str(e)}") from e
+
+    def model_stream_response(self, messages: List[dict]) -> Iterator[str]:
+        """Generate stream of response"""
+
+        if not self._model_loaded:
+            self.load_model()
+
+        if not self._client:
+            raise RuntimeError(
+                "Ollama client is not initialized. Failed to connect or load model"
+            )
+
+        logger.info("Invoking Ollama chat model: %s", self.model)
+
+        logger.info("Invoking Ollama model: %s at %s", self.model, self.base_url)
+
+        try:
+            response = self._client.chat(
+                model=self.model, messages=messages, stream=True
+            )
+
+            for chunk in response:
+                if isinstance(chunk, dict):
+                    message = chunk.get("message", {})
+                    token = message.get("content", "")
+                    if token:
+                        yield token
+                else:
+                    if chunk:
+                        yield str(chunk)
+
+        except Exception as e:
+            logger.error(
+                "Error generating stream response with Ollama chat: %s",
+                str(e),
+                exc_info=True,
+            )
+            raise LLMError(f"Error generating stream response: {str(e)}") from e

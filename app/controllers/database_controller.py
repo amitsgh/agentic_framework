@@ -2,10 +2,11 @@
 
 from typing import List
 
-from app.services.db.factory import get_db_instance
+from app.services.db.base import BaseDB
 from app.services.embedder.base import BaseEmbeddings
 from app.models.document_model import Document
 from app.core.logger import setuplog
+from app.core.exceptions.base import DatabaseError
 
 logger = setuplog(__name__)
 
@@ -13,9 +14,8 @@ logger = setuplog(__name__)
 class DatabaseController:
     """Database Controller"""
 
-    def __init__(self):
-        self.db = get_db_instance()
-        self.db.connect()
+    def __init__(self, db: BaseDB):
+        self.db = db
 
     def add_documents_to_db(
         self, documents: List[Document], embeddings: BaseEmbeddings
@@ -24,7 +24,7 @@ class DatabaseController:
 
         if not documents:
             logger.warning("No documents provided for saving")
-            raise
+            raise DatabaseError("No documents provided")
 
         try:
             ids = self.db.add_documents(documents, embeddings)
@@ -32,13 +32,16 @@ class DatabaseController:
             return ids
 
         except Exception as e:
-            logger.error("Error saving documents: %s", str(e))
-            raise
+            logger.error("Error saving documents: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to save documents: {str(e)}") from e
 
     def search_documents(
         self, query: str, embeddings: BaseEmbeddings, top_k: int = 10
     ) -> List[Document]:
         """Search for similar documents"""
+
+        if not query or not query.strip():
+            raise DatabaseError("Empty query provided")
 
         try:
             results = self.db.similarity_search(
@@ -50,20 +53,8 @@ class DatabaseController:
             return results
 
         except Exception as e:
-            logger.error("Error during document search: %s", str(e))
-            raise
-
-    # def delete_documents_by_id(self, document_ids: List[str]) -> bool:
-    #     """Delete specific documents by their IDs"""
-
-    #     try:
-    #         success = self.db.delete_documents_by_id(document_ids)
-    #         logger.info("Deleted documents by ID: %s", document_ids)
-    #         return success
-
-    #     except Exception as e:
-    #         logger.error("Error deleting documents by ID: %s", str(e))
-    #         raise
+            logger.error("Error during document search: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Search failed: {str(e)}") from e
 
     def delete_all_documents(self) -> int:
         """Delete all documents from vector db"""
@@ -74,5 +65,5 @@ class DatabaseController:
             return count
 
         except Exception as e:
-            logger.error("Error deleting all documents: %s", str(e))
-            raise
+            logger.error("Error deleting all documents: %s", str(e), exc_info=True)
+            raise DatabaseError(f"Failed to delete documents: {str(e)}") from e

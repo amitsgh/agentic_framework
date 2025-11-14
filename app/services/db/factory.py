@@ -18,20 +18,20 @@ DATABASE_REGISTRY: dict[str, Type[BaseDB]] = {
 def get_db_instance() -> BaseDB:
     """Get database instance"""
 
-    db_class = DATABASE_REGISTRY.get(config.DATABASE_TYPE)
+    db_class = DATABASE_REGISTRY.get(config.DATABASE_TYPE.lower())
 
     if db_class is None:
         logger.warning(
             "Database type %s not found, falling back to default", config.DATABASE_TYPE
         )
         db_class = RedisDB
-        
+
     if db_class is RedisDB:
         return db_class(
             redis_url=config.REDIS_URL,
             index_name=config.COLLECTION_NAME,
             dim=config.EMBEDDING_DIMENSIONS,
-            distance_metric=config.DISTANCE_METRIC
+            distance_metric=config.DISTANCE_METRIC,
         )
 
-    return db_class(embeddings)  # type: ignore
+    return db_class()  # type: ignore

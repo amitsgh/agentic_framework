@@ -18,11 +18,11 @@ CHUNKER_REGISTRY: dict[str, Type[BaseChunker]] = {
 def get_chunker_instance() -> BaseChunker:
     """Get chunker instance"""
 
-    chunker_class = CHUNKER_REGISTRY.get(config.CHUNKER_TYPER)
+    chunker_class = CHUNKER_REGISTRY.get(config.CHUNKER_TYPE)
 
     if chunker_class is None:
         logger.warning(
-            "Parser type %s not found, falling back to default", config.CHUNKER_TYPER
+            "Parser type %s not found, falling back to default", config.CHUNKER_TYPE
         )
         chunker_class = DoclingHybridChunker
 

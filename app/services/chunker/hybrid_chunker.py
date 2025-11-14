@@ -13,6 +13,7 @@ from transformers import AutoTokenizer
 
 from app.services.chunker.base import BaseChunker
 from app.models.document_model import BoundingBox, Document, DocumentMetadata
+from app.core.exceptions.base import DocumentProcessingError
 from app.core.logger import setuplog
 
 logger = setuplog(__name__)
@@ -28,7 +29,7 @@ class DoclingHybridChunker(BaseChunker):
         self.chunker = HybridChunker(tokenizer=self.tokenizer)
 
     def _extract_metadata(self, meta: dict) -> DocumentMetadata:
-        """Extract & flattern the docling metadata"""
+        """Extract & flatten the docling metadata"""
 
         try:
             origin = meta.get("origin", {}) or {}
@@ -50,23 +51,43 @@ class DoclingHybridChunker(BaseChunker):
 
         except Exception as e:
             logger.warning("Chunk metadata extraction failed: %s", str(e))
-            raise
+            # Return minimal metadata instead of raising
+            return DocumentMetadata()
 
     def chunk(self, documents: List[DoclingDocument]) -> List[Document]:
         """Chunk the data"""
 
+        if not documents:
+            raise DocumentProcessingError("No documents provided for chunking")
+
         all_chunks = []
-        for doc in documents:
-            chunk_iter = self.chunker.chunk(dl_doc=doc)
+        try:
+            for doc in documents:
+                chunk_iter = self.chunker.chunk(dl_doc=doc)
 
-            for chunk in chunk_iter:
-                data = chunk.model_dump_json()
-                parsed = json.loads(data)
+                for chunk in chunk_iter:
+                    try:
+                        data = chunk.model_dump_json()
+                        parsed = json.loads(data)
 
-                content = parsed.get("text", "")
-                metadata = self._extract_metadata(parsed.get("metadata"))
-                document = Document(content=content, metadata=metadata)
+                        content = parsed.get("text", "")
+                        if not content:
+                            logger.warning("Skipping chunk with empty content")
+                            continue
 
-                all_chunks.append(document)
+                        metadata = self._extract_metadata(parsed.get("metadata", {}))
+                        document = Document(content=content, metadata=metadata)
+                        all_chunks.append(document)
 
-        return all_chunks
+                    except Exception as e:
+                        logger.warning("Error processing chunk: %s", str(e))
+                        continue
+
+            if not all_chunks:
+                raise DocumentProcessingError("Chunking produced no valid chunks")
+
+            return all_chunks
+
+        except Exception as e:
+            logger.error("Error during chunking: %s", str(e), exc_info=True)
+            raise DocumentProcessingError(f"Chunking failed: {str(e)}") from e

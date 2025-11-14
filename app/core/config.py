@@ -1,56 +1,104 @@
-"""Configuration File"""
+"""Configuration file with Env Support"""
 
+import json
 from pathlib import Path
+from typing import List
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
-class Configuration:
+
+class Settings(BaseSettings):
     """Configuration class"""
 
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+    )
+
     # Factory Configuration
-    LLM_TYPE = "ollama"
-    DATABASE_TYPE = "redis"
-    EXTRACTOR_TYPE = "docling"
-    CHUNKER_TYPER = "docling-hybrid"
-    EMBEDDINGS_TYPE = "huggingface"
+    LLM_TYPE: str = "ollama"
+    DATABASE_TYPE: str = "redis"
+    EXTRACTOR_TYPE: str = "docling"
+    CHUNKER_TYPE: str = "docling-hybrid"
+    EMBEDDINGS_TYPE: str = "huggingface"
 
     # Ollama Configuration
-    OLLAMA_BASE_URL = ""
-    OLLAMA_MODEL = "gpt20b"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama2"
 
     # Temp File Configuration
-    UPLOAD_DIR = Path(__file__).resolve().parent.parent / "tmp" / "uploads"
+    UPLOAD_DIR: Path = Path(__file__).resolve().parent.parent / "tmp" / "uploads"
+    MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
+    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".txt", ".md"]
 
     # Redis Configuration
-    REDIS_URL = "redis://localhost:6379"
-    COLLECTION_NAME = "default"
-    DISTANCE_METRIC = "cosine"
+    REDIS_URL: str = "redis://localhost:6379"
+    COLLECTION_NAME: str = "default"
+    DISTANCE_METRIC: str = "cosine"
 
     # Embeddings Configuration
-    MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-    CACHE_FOLDER = "cache"
-    EMBEDDING_DIMENSIONS = 384
+    MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    CACHE_FOLDER: str = "cache"
+    EMBEDDING_DIMENSIONS: int = 384
 
     # Chunk Configuration
-    CHUNK_SIZE = 1000
-    CHUNK_OVERLAP = 200
-    SEPARATORS = [
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+    SEPARATORS: List[str] = [
         "\n\n",
         "\n",
         " ",
         ".",
         ",",
-        "\u200b",  # Zero-width space
-        "\uff0c",  # Fullwidth comma
-        "\u3001",  # Ideographic comma
-        "\uff0e",  # Fullwidth full stop
-        "\u3002",  # Ideographic full stop
+        "\u200b",
+        "\uff0c",
+        "\u3001",
+        "\uff0e",
+        "\u3002",
         "",
     ]
 
-    # Server Configuation
-    BACKEND_URL = "http://localhost:8000"
+    # Server Configuration
+    BACKEND_URL: str = "http://localhost:8000"
+    CORS_ORIGINS: str | List[str] = ["http://localhost:8501", "http://127.0.0.1:8000/"]
 
-    def to_dict(self):
-        pass
+    # RAG Configuration
+    RAG_ENABLED: bool = True
+    RAG_TOP_K: int = 5
+    RAG_MIN_SCORE: float = 0.7
+
+    # Performance Configuration
+    ENABLE_CACHING: bool = True
+    CACHE_TTL: int = 3600
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS_ORIGINS env"""
+
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return ["http://localhost:8501", "http://127.0.0.1:8000/"]
+            try:
+                return json.loads(s)
+
+            except (json.JSONDecodeError, ValueError):
+                return [origin.strip() for origin in s.split(",") if origin.strip()]
+
+        return v
+
+    @field_validator("UPLOAD_DIR")
+    @classmethod
+    def create_upload_dir(cls, v: Path) -> Path:
+        """Ensure uplaod directory exists"""
+
+        v.mkdir(parents=True, exist_ok=True)
+        return v
+
+    def to_dict(self) -> dict:
+        """Convert settings to dictionary"""
+
+        return self.model_dump()
 
 
-config = Configuration()
+config = Settings()

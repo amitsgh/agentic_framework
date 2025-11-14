@@ -1,37 +1,57 @@
 """Controller for Document Ingestion"""
 
-import json
 from typing import List, Union
 
-from app.services.extractor.factory import get_extractor_instance
-from app.services.chunker.factor import get_chunker_instance
+from app.services.extractor.base import BaseExtractor
+from app.services.chunker.base import BaseChunker
 from app.models.document_model import Document
 from app.core.decorator.timer import timer
 from app.core.logger import setuplog
+from app.core.exceptions.base import DocumentProcessingError
 
 logger = setuplog(__name__)
 
 
 class DocumentController:
-    """Document processing - parsing, chunking, embedding"""
+    """Document processing - parsing, chunking"""
 
-    def __init__(self):
-        self.extractor = get_extractor_instance()
-        self.chunker = get_chunker_instance()
+    def __init__(self, extractor: BaseExtractor, chunker: BaseChunker):
+        self.extractor = extractor
+        self.chunker = chunker
 
+    @timer
     def create_documents(self, file_paths: Union[str, List[str]]) -> List[Document]:
         """Parse document and return Document Object"""
 
+        if not file_paths:
+            raise DocumentProcessingError("No file paths provided")
+
         try:
-            raw_data = self.extractor.extract(file_paths)
-            documents = self.chunker.chunk(raw_data)
-            
-            if not documents:
-                raise ValueError("Parser return no documents")
+            if isinstance(file_paths, str):
+                file_paths = [file_paths]
 
-            logger.info("Created %s: %d", file_paths, len(documents))
-            return documents
+            extracted_documents = self.extractor.extract(file_paths)
+            logger.debug("Extracted documents with %d pages", len(extracted_documents))
 
-        except Exception as e:
-            logger.error("Parsing error for %s: %s", file_paths, str(e))
+            if not extracted_documents:
+                raise DocumentProcessingError("Extractor returned no data")
+
+            chunked_documents = self.chunker.chunk(extracted_documents)
+
+            if not chunked_documents:
+                raise DocumentProcessingError("Chunker returned no documents")
+
+            logger.info(
+                "Created %d documents from %d files",
+                len(chunked_documents),
+                len(file_paths),
+            )
+            return chunked_documents
+
+        except DocumentProcessingError:
             raise
+        except Exception as e:
+            logger.error("Parsing error for %s: %s", file_paths, str(e), exc_info=True)
+            raise DocumentProcessingError(
+                f"Failed to process documents: {str(e)}"
+            ) from e

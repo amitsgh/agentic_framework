@@ -9,7 +9,6 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from app.services.parser.factory import get_parser_instance  # type: ignore
 from app.core.config import config
 from ui.services.document_service import upload_document, delete_all_documents
 from ui.services.chat_service import chat_stream
@@ -87,11 +86,10 @@ def main():
     with st.sidebar:
         st.header("Document Management")
 
-        supported_extension = get_parser_instance().supported_extension()
         uploaded_file = st.file_uploader(
             "Upload a document",
-            type=supported_extension,
-            help=f"Supported formats: {', '.join(supported_extension)}",
+            # type=supported_extension,
+            # help=f"Supported formats: {', '.join(supported_extension)}",
             key="file_uploader",
         )
 
