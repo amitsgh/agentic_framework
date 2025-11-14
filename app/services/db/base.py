@@ -1,7 +1,7 @@
 """Abstract Class for Database Services"""
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Any, List, Optional
 
 from app.services.embedder.base import BaseEmbeddings
 from app.models.document_model import Document
@@ -15,6 +15,12 @@ class BaseDB(ABC):
         """Connect to databse"""
 
         raise NotImplementedError("Subclass must implement the connect method")
+
+    @abstractmethod
+    def get_client(self) -> Any:
+        """Get db client"""
+
+        raise NotImplementedError("Subclas must implement the get_cleint method")
 
     @abstractmethod
     def disconnect(self) -> None:

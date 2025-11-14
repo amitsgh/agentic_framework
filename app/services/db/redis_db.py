@@ -1,6 +1,6 @@
 """Redis Databse Service"""
 
-from typing import List
+from typing import List, Optional, cast
 import json
 import uuid
 
@@ -11,6 +11,7 @@ from app.services.db.base import BaseDB
 from app.services.embedder.base import BaseEmbeddings
 from app.models.document_model import Document
 from app.core.exceptions.base import DatabaseError, ValidationError
+from app.core.config import config
 from app.core.logger import setuplog
 
 logger = setuplog(__name__)
@@ -21,27 +22,27 @@ class RedisDB(BaseDB):
 
     def __init__(
         self,
-        redis_url: str,
-        index_name: str,
-        dim: int,
-        distance_metric: str = "COSINE",
+        redis_url: Optional[str] = None,
+        index_name: Optional[str] = None,
+        dim: Optional[int] = None,
+        distance_metric: Optional[str] = None,
     ):
-        self.redis_url = redis_url
-        self.index_name = index_name
-        self.dim = dim
-        self.distance_metric = distance_metric
-        self.client = None
+        self.redis_url = redis_url or config.REDIS_URL
+        self.index_name = index_name or config.COLLECTION_NAME
+        self.dim = dim if dim is not None else config.EMBEDDING_DIMENSIONS
+        self.distance_metric = distance_metric or config.DISTANCE_METRIC
+        self._client: Optional[redis.Redis] = None
 
     def _ensure_index(self):
         """Ensure redis vector index (collection) exits"""
 
-        if not self.client:
+        if not self._client:
             raise DatabaseError(
                 "Redis client is not initialized. Call connect() first."
             )
 
         try:
-            self.client.ft(self.index_name).info()
+            self._client.ft(self.index_name).info()
             logger.info("Redis index '%s' already exists", self.index_name)
 
         except Exception:
@@ -52,7 +53,7 @@ class RedisDB(BaseDB):
                     f"SCHEMA content TEXT metadata TEXT "
                     f"vector VECTOR HNSW 6 TYPE FLOAT32 DIM {self.dim} DISTANCE_METRIC {self.distance_metric}"
                 )
-                self.client.execute_command(create_stmt)
+                self._client.execute_command(create_stmt)
                 logger.info("Index '%s' created successfully", self.index_name)
 
             except Exception as e:
@@ -62,14 +63,10 @@ class RedisDB(BaseDB):
     def connect(self) -> None:
         """Connect to Redis DB"""
 
-        if self.client:
-            logger.info("Already connected to Redis")
-            return
-
         try:
             logger.info("Connecting to Redis at %s", self.redis_url)
-            self.client = redis.Redis.from_url(self.redis_url)
-            self.client.ping()
+            self._client = redis.Redis.from_url(self.redis_url)
+            self._client.ping()
             logger.info("Connected to Redis successfully.")
             self._ensure_index()
 
@@ -77,19 +74,25 @@ class RedisDB(BaseDB):
             logger.error("Redis connection failed: %s", str(e), exc_info=True)
             raise DatabaseError(f"Could not connect to Redis: {str(e)}") from e
 
+    def get_client(self) -> redis.Redis:
+        if self._client is None:
+            self.connect()
+
+        return cast(redis.Redis, self._client)
+
     def disconnect(self) -> None:
         """Disconnect from Redis DB"""
 
-        if self.client:
+        if self._client:
             logger.info("Disconnecting from Redis...")
             try:
-                self.client.close()
+                self._client.close()
 
             except Exception as e:
                 logger.warning("Error closing Redis connection: %s", str(e))
 
             finally:
-                self.client = None
+                self._client = None
                 logger.info("Disconnected from Redis.")
 
         else:
@@ -100,7 +103,7 @@ class RedisDB(BaseDB):
     ) -> List[str]:
         """Embed and store documents in vector db"""
 
-        if not self.client:
+        if not self._client:
             raise DatabaseError(
                 "Redis client is not initialized. Call connect() first."
             )
@@ -113,12 +116,12 @@ class RedisDB(BaseDB):
             for doc in documents:
                 content = doc.content
                 # metadata = doc.metadata or {}
-                metadata_json = json.dumps(doc.metadata.model_dump(mode='json')) or json.dumps({}) # type: ignore
+                metadata_json = json.dumps(doc.metadata.model_dump(mode="json")) or json.dumps({})  # type: ignore
                 vector = embeddings.embed(content)
                 vector_bytes = vector.tobytes()
                 doc_id = f"doc: {uuid.uuid4()}"
 
-                self.client.hset(
+                self._client.hset(
                     doc_id,
                     mapping={
                         "content": content,
@@ -141,7 +144,7 @@ class RedisDB(BaseDB):
     ) -> List[Document]:
         """Search for similar document using distance metrics"""
 
-        if not self.client:
+        if not self._client:
             raise DatabaseError(
                 "Redis client is not initialized. Call connect() first."
             )
@@ -156,7 +159,7 @@ class RedisDB(BaseDB):
             search_query = f"*=>[KNN {top_k} @vector $vec AS score]"
             params = {"vec": query_bytes}
 
-            results = self.client.ft(self.index_name).search(
+            results = self._client.ft(self.index_name).search(
                 search_query, query_params=params  # type: ignore
             )
             docs = []
@@ -182,7 +185,7 @@ class RedisDB(BaseDB):
     def delete_documents_by_source(self, sources: List[str]) -> int:
         """Delete document by Sources"""
 
-        if not self.client:
+        if not self._client:
             raise DatabaseError(
                 "Redis client is not initialized. Call connect() first."
             )
@@ -191,14 +194,14 @@ class RedisDB(BaseDB):
             raise ValidationError("No sources provided for deletion")
 
         try:
-            keys = self.client.keys("doc:*")
+            keys = self._client.keys("doc:*")
             if not keys:
                 logger.info("No documents found in Redis")
                 return 0
 
             deleted = 0
             for key in keys:  # type: ignore
-                doc_data = self.client.hgetall(key)
+                doc_data = self._client.hgetall(key)
                 if not doc_data:
                     continue
 
@@ -208,7 +211,7 @@ class RedisDB(BaseDB):
 
                     source = metadata.get("source") or metadata.get("filename")
                     if source and source in sources:
-                        self.client.delete(key)
+                        self._client.delete(key)
                         deleted += 1
 
                 except Exception as e:
@@ -229,16 +232,16 @@ class RedisDB(BaseDB):
     def delete_all(self) -> int:
         """Delete all documents"""
 
-        if not self.client:
+        if not self._client:
             raise DatabaseError(
                 "Redis client is not initialized. Call connect() first."
             )
 
         try:
             deleted_count = 0
-            keys = self.client.keys("doc:*")
+            keys = self._client.keys("doc:*")
             if keys:
-                deleted_count = self.client.delete(*keys)  # type: ignore
+                deleted_count = self._client.delete(*keys)  # type: ignore
 
             logger.info("Deleted %d documents from Redis", deleted_count)
             return deleted_count  # type: ignore

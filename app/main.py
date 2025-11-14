@@ -1,5 +1,7 @@
 """FastAPI Application"""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -15,11 +17,25 @@ from app.core.exceptions.error_handler import (
 )
 
 from app.core.exceptions.base import FrameworkException
+from app.core.logger import setuplog
+
+logger = setuplog(__name__)
+
+logger.info("Starting Agentic Framework API application...")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Application startup event triggered.")
+    yield  # <-- Application runs while paused here
+    logger.info("Application shutdown event triggered.")
+
 
 app = FastAPI(
     title="Agentic Framework API",
     description="LLM Application with RAG capabilities",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -45,7 +61,6 @@ app.add_exception_handler(
 app.add_exception_handler(Exception, general_exception_handler)
 
 register_routers(app)
-
 
 # @app.get("/")
 # async def root():

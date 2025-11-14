@@ -26,12 +26,4 @@ def get_db_instance() -> BaseDB:
         )
         db_class = RedisDB
 
-    if db_class is RedisDB:
-        return db_class(
-            redis_url=config.REDIS_URL,
-            index_name=config.COLLECTION_NAME,
-            dim=config.EMBEDDING_DIMENSIONS,
-            distance_metric=config.DISTANCE_METRIC,
-        )
-
-    return db_class()  # type: ignore
+    return db_class()

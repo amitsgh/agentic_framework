@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     EXTRACTOR_TYPE: str = "docling"
     CHUNKER_TYPE: str = "docling-hybrid"
     EMBEDDINGS_TYPE: str = "huggingface"
+    CACHE_TYPE: str = "redis-cache"
 
     # Ollama Configuration
     OLLAMA_BASE_URL: str = "http://localhost:11434"
