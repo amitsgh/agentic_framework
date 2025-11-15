@@ -1,6 +1,7 @@
 """Configuration file with Env Support"""
 
 import json
+import logging
 from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -70,6 +71,33 @@ class Settings(BaseSettings):
     # Performance Configuration
     ENABLE_CACHING: bool = True
     CACHE_TTL: int = 3600
+
+    # Logging Configuration
+    LOG_LEVEL: int = logging.DEBUG  # Can be set via env as: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+    @field_validator("LOG_LEVEL", mode="before")
+    @classmethod
+    def parse_log_level(cls, v):
+        """Parse LOG_LEVEL from string to logging level integer"""
+
+        if isinstance(v, int):
+            return v
+        
+        if isinstance(v, str):
+            level_name = v.upper().strip()
+            level_map = {
+                "DEBUG": logging.DEBUG,
+                "INFO": logging.INFO,
+                "WARNING": logging.WARNING,
+                "ERROR": logging.ERROR,
+                "CRITICAL": logging.CRITICAL,
+            }
+            if level_name in level_map:
+                return level_map[level_name]
+                
+            return logging.DEBUG
+        
+        return logging.DEBUG
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

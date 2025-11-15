@@ -13,7 +13,6 @@ from app.core.logger import setuplog
 logger = setuplog(__name__)
 
 
-
 class OllamaModel(BaseLLM):
     """Ollama LLM Service"""
 
@@ -57,7 +56,11 @@ class OllamaModel(BaseLLM):
 
         except Exception as e:
             logger.critical("Failed to load Ollama model: %s", str(e), exc_info=True)
-            logger.debug("Ollama model load failed for model: %s at %s", self.model, self.base_url)
+            logger.debug(
+                "Ollama model load failed for model: %s at %s",
+                self.model,
+                self.base_url,
+            )
             raise LLMError(f"Failed to load Ollama model: {str(e)}") from e
 
     def model_response(self, messages: List[Dict[str, str]]) -> str:
@@ -84,17 +87,18 @@ class OllamaModel(BaseLLM):
                 message = response.get("message", {})
                 content = message.get("content", "")
                 logger.debug("Received response of length: %d", len(content))
-                logger.debug("Response metadata: %s", {k: v for k, v in response.items() if k != "message"})
                 return content
-            else:
-                logger.error("Unexpected response format: %s", type(response))
-                raise LLMError(f"Unexpected response format: {type(response)}")
+
+            logger.error("Unexpected response format: %s", type(response))
+            raise LLMError(f"Unexpected response format: {type(response)}")
 
         except Exception as e:
             logger.error(
                 "Error generating response with Ollama chat: %s", str(e), exc_info=True
             )
-            logger.debug("Chat error for model: %s, message count: %d", self.model, len(messages))
+            logger.debug(
+                "Chat error for model: %s, message count: %d", self.model, len(messages)
+            )
             raise LLMError(f"Error generating response: {str(e)}") from e
 
     def model_stream_response(self, messages: List[dict]) -> Iterator[str]:
@@ -138,5 +142,9 @@ class OllamaModel(BaseLLM):
                 str(e),
                 exc_info=True,
             )
-            logger.debug("Stream error for model: %s, message count: %d", self.model, len(messages))
+            logger.debug(
+                "Stream error for model: %s, message count: %d",
+                self.model,
+                len(messages),
+            )
             raise LLMError(f"Error generating stream response: {str(e)}") from e

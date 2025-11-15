@@ -1,11 +1,12 @@
 """Global Logging Configuration"""
 
-import os
 from typing import Union, Optional
 import logging
 from logging import FileHandler
 from pathlib import Path
 from colorlog import ColoredFormatter
+
+from app.core.config import config
 
 
 def setuplog(
@@ -17,12 +18,7 @@ def setuplog(
     """logging setup with color format and file logging into a 'logs' folder"""
 
     if level is None:
-        env_level = os.getenv("LOG_LEVEL")
-
-        if env_level:
-            level = getattr(logging, env_level.upper(), logging.DEBUG)
-        else:
-            level = logging.DEBUG
+        level = config.LOG_LEVEL
 
     console_formatter = ColoredFormatter(
         "%(log_color)s%(levelname)-8s%(reset)s %(blue)s%(name)s:%(reset)s %(message)s",
@@ -47,7 +43,6 @@ def setuplog(
         "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
     )
 
-    # Handlers
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(console_formatter)
 
