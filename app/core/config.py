@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     ENABLE_CACHING: bool = True
     CACHE_TTL: int = 3600
 
+    # Redis Key Patterns Configuration
+    CACHE_KEY_PREFIX: str = "cache:"
+    CACHE_DOC_STATE_PATTERN: str = "doc_state:{file_hash}"  # Processing state cache key
+    CACHE_DOC_PROCESSING_PATTERN: str = "doc_processing:{file_hash}:{stage}"  # Processing stage cache key
+    
+    REDIS_DOC_KEY_PREFIX: str = "doc:"
+    REDIS_DOC_KEY_PATTERN: str = "doc:*"
+
     # Logging Configuration
     LOG_LEVEL: int = logging.DEBUG  # Can be set via env as: DEBUG, INFO, WARNING, ERROR, CRITICAL
 

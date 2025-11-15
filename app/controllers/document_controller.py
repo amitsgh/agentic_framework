@@ -17,6 +17,7 @@ from app.models.processing_state import ProcessingStage, ProcessingState
 from app.core.decorator.timer import timer
 from app.core.logger import setuplog
 from app.core.exceptions.base import DocumentProcessingError
+from app.core.config import config
 
 logger = setuplog(__name__)
 
@@ -35,12 +36,14 @@ class DocumentController:
         self.cache = cache
 
     def _get_cache_key(self, file_hash: str, stage: str) -> str:
-        """Generate cache key"""
-        return f"doc_processing:{file_hash}:{stage}"
+        """Generate cache key using config pattern"""
+        return config.CACHE_DOC_PROCESSING_PATTERN.format(
+            file_hash=file_hash, stage=stage
+        )
 
     def _get_state_key(self, file_hash: str) -> str:
-        """Generate state cache key"""
-        return f"doc_state:{file_hash}"
+        """Generate state cache key using config pattern"""
+        return config.CACHE_DOC_STATE_PATTERN.format(file_hash=file_hash)
 
     def _load_state(self, file_hash: str) -> Optional[ProcessingState]:
         """Load processing state from cache"""
@@ -186,11 +189,19 @@ class DocumentController:
                 ProcessingStage.EMBEDDED,
                 ProcessingStage.STORED,
             ]:
-                logger.info("Skipping extraction - already completed")
-                # FIXME: We can't deserialize DoclingDocument from cache easily
-                # So we'll always re-extract if needed, but skip if stage is beyond EXTRACTED
-                # The extracted docs cache is kept for reference but not used for resume
-                extracted_documents = None  # Will trigger re-extraction if needed
+                logger.info("Skipping extraction - already completed (stage: %s)", state.stage.value)
+                # Note: We can't easily deserialize DoclingDocument from cache,
+                # but if stage is STORED, we don't need extracted docs for chunking
+                # since chunked docs are already cached. For stages EXTRACTED and above,
+                # we'll need to re-extract if chunked docs aren't available.
+                if state.stage == ProcessingStage.STORED:
+                    # If already stored, we don't need to extract again
+                    # The chunked documents should be loaded from cache in the next step
+                    extracted_documents = []  # Empty list to indicate skip
+                else:
+                    # For EXTRACTED, CHUNKED, EMBEDDED stages, we may need to re-extract
+                    # if chunked docs aren't available
+                    extracted_documents = None  # Will trigger re-extraction if needed
 
             if extracted_documents is None:
                 logger.info("Extracting documents...")

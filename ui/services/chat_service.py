@@ -1,6 +1,6 @@
 """Chat Service functions to interact with backend API"""
 
-from typing import Iterator, Union
+from typing import Iterator
 import requests
 
 from app.core.config import config

@@ -92,7 +92,9 @@ async def upload_document(
         # check if already processed (unless force_reprocess)
         if not forced_reprocess and cache:
             logger.debug("Checking cache for existing processing state...")
-            state = cache.get(f"doc_processing:{file_hash}")
+            # Use config pattern for cache key
+            state_key = config.CACHE_DOC_STATE_PATTERN.format(file_hash=file_hash)
+            state = cache.get(state_key)
             if state and state.get("stage") == ProcessingStage.STORED.value:
                 logger.info("File already processed, skipping: %s", file.filename)
                 logger.debug("File hash %s found in cache with stage: %s", file_hash[:16], state.get("stage"))
@@ -138,8 +140,9 @@ async def upload_document(
 
                 # Update cache with validation
                 if cache:
+                    state_key = config.CACHE_DOC_STATE_PATTERN.format(file_hash=file_hash)
                     success = cache.set(
-                        f"doc_state:{file_hash}",
+                        state_key,
                         state.model_dump(mode="json"),
                         ttl=86400 * 7,
                     )
@@ -163,8 +166,9 @@ async def upload_document(
                     state.stage = ProcessingStage.FAILED
                     state.error_message = str(e)
                     state.updated_at = datetime.now(timezone.utc).isoformat()
+                    state_key = config.CACHE_DOC_STATE_PATTERN.format(file_hash=file_hash)
                     cache.set(
-                        f"doc_state:{file_hash}", state.model_dump(), ttl=86400 * 7
+                        state_key, state.model_dump(), ttl=86400 * 7
                     )
                 raise DatabaseError(f"Error storing documents: {str(e)}") from e
 
@@ -227,8 +231,8 @@ async def clear_cache(cache=Depends(get_cache)):
         return DocumentResponse(
             status="success",
             file_name="",
-            message="Cache clearing requires manual Redis operation. "
-                   "Use redis-cli: KEYS doc_cache:* and DEL for each key.",
+            message=f"Cache clearing requires manual Redis operation. "
+                   f"Use redis-cli: KEYS {config.CACHE_KEY_PREFIX}* and DEL for each key.",
         )
     
     except Exception as e:

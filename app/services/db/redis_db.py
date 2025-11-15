@@ -9,7 +9,6 @@ import redis
 from app.models.document_model import Document, DocumentMetadata
 from app.services.db.base import BaseDB
 from app.services.embedder.base import BaseEmbeddings
-from app.models.document_model import Document
 from app.core.exceptions.base import DatabaseError, ValidationError
 from app.core.config import config
 from app.core.logger import setuplog
@@ -33,6 +32,14 @@ class RedisDB(BaseDB):
         self.distance_metric = distance_metric or config.DISTANCE_METRIC
         self._client: Optional[redis.Redis] = None
 
+    def _build_index_creation_command(self) -> str:
+        """Build Redis FT.CREATE command for vector index"""
+        return (
+            f"FT.CREATE {self.index_name} ON HASH PREFIX 1 '{config.REDIS_DOC_KEY_PREFIX}' "
+            f"SCHEMA content TEXT metadata TEXT "
+            f"vector VECTOR HNSW 6 TYPE FLOAT32 DIM {self.dim} DISTANCE_METRIC {self.distance_metric}"
+        )
+
     def _ensure_index(self):
         """Ensure redis vector index (collection) exits"""
 
@@ -51,12 +58,9 @@ class RedisDB(BaseDB):
             logger.info("Creating Redis vector index '%s'...", self.index_name)
             logger.debug("Index creation parameters: dim=%s, metric=%s", self.dim, self.distance_metric)
             try:
-                create_stmt = (
-                    f"FT.CREATE {self.index_name} ON HASH PREFIX 1 'doc:' "
-                    f"SCHEMA content TEXT metadata TEXT "
-                    f"vector VECTOR HNSW 6 TYPE FLOAT32 DIM {self.dim} DISTANCE_METRIC {self.distance_metric}"
-                )
-                self._client.execute_command(create_stmt)
+                create_command = self._build_index_creation_command()
+                logger.debug("Executing index creation command: %s", create_command)
+                self._client.execute_command(create_command)
                 logger.info("Index '%s' created successfully", self.index_name)
                 logger.debug("Redis index creation completed")
 
@@ -132,7 +136,7 @@ class RedisDB(BaseDB):
                 logger.debug("Generating embedding for document %d (content length: %d)", idx + 1, len(content))
                 vector = embeddings.embed(content)
                 vector_bytes = vector.tobytes()
-                doc_id = f"doc: {uuid.uuid4()}"
+                doc_id = f"{config.REDIS_DOC_KEY_PREFIX}{uuid.uuid4()}"
                 logger.debug("Storing document %d with ID: %s", idx + 1, doc_id)
 
                 self._client.hset(
@@ -220,7 +224,7 @@ class RedisDB(BaseDB):
             raise ValidationError("No sources provided for deletion")
 
         try:
-            keys = self._client.keys("doc:*")
+            keys = self._client.keys(config.REDIS_DOC_KEY_PATTERN)
             if not keys:
                 logger.info("No documents found in Redis")
                 return 0
@@ -265,7 +269,7 @@ class RedisDB(BaseDB):
 
         try:
             deleted_count = 0
-            keys = self._client.keys("doc:*")
+            keys = self._client.keys(config.REDIS_DOC_KEY_PATTERN)
             if keys:
                 deleted_count = self._client.delete(*keys)  # type: ignore
 
