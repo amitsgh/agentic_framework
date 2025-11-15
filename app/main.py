@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.dependency import get_db_sync, get_embeddings, get_extractor, get_cache
 from app.router import register_routers
 from app.core.config import config
 from app.core.exceptions.error_handler import (
@@ -22,13 +23,44 @@ from app.core.logger import setuplog
 logger = setuplog(__name__)
 
 logger.info("Starting Agentic Framework API application...")
+logger.debug("Application configuration loaded: LLM_TYPE=%s, DATABASE_TYPE=%s", config.LLM_TYPE, config.DATABASE_TYPE)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Application startup event triggered.")
-    yield  # <-- Application runs while paused here
+    logger.debug("Initializing application dependencies...")
+    
+    try:
+        logger.debug("Validating database service...")
+        database = get_db_sync()
+        logger.info("Database service initialized successfully")
+
+        logger.debug("Validating embeddings service...")
+        embeddings = get_embeddings()
+        logger.info("Embeddings service initialized successfully")
+        
+        logger.debug("Validating extractor service...")
+        extractor = get_extractor()
+        logger.info("Extractor service initialized successfully")
+        
+        logger.debug("Validating cache service...")
+        cache = get_cache()
+        if cache:
+            logger.info("Cache service initialized successfully")
+        else:
+            logger.warning("Cache service is disabled or unavailable")
+        
+        logger.info("All critical services validated during startup")
+        
+    except Exception as e:
+        logger.critical("Failed to initialize critical services during startup: %s", str(e), exc_info=True)
+        raise
+    
+    yield
+    
     logger.info("Application shutdown event triggered.")
+    logger.debug("Cleaning up application resources...")
 
 
 app = FastAPI(
@@ -61,12 +93,6 @@ app.add_exception_handler(
 app.add_exception_handler(Exception, general_exception_handler)
 
 register_routers(app)
-
-# @app.get("/")
-# async def root():
-#     """Root endpoint"""
-#     return {"message": "LLM Application", "status": "healty", "version": "1.0.0"}
-
 
 @app.get("/health")
 async def health_check():

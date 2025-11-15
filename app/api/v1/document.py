@@ -68,7 +68,11 @@ async def upload_document(
 ):
     """Endpoint to upload and process a files"""
 
+    logger.info("Document upload request received: %s", file.filename)
+    logger.debug("Upload parameters: forced_reprocess=%s, filename=%s, content_type=%s", 
+                forced_reprocess, file.filename, file.content_type)
     try:
+        logger.debug("Validating uploaded file...")
         validate_file(file)
 
         if not file.filename:
@@ -83,39 +87,51 @@ async def upload_document(
         logger.info(
             "File hash computed: %s for file: %s", file_hash[:16], file.filename
         )
+        logger.debug("File hash: %s, file size: %d bytes", file_hash, len(file_bytes))
 
         # check if already processed (unless force_reprocess)
         if not forced_reprocess and cache:
-            state = cache.get(f"doc_state:{file_hash}")
+            logger.debug("Checking cache for existing processing state...")
+            state = cache.get(f"doc_processing:{file_hash}")
             if state and state.get("stage") == ProcessingStage.STORED.value:
                 logger.info("File already processed, skipping: %s", file.filename)
+                logger.debug("File hash %s found in cache with stage: %s", file_hash[:16], state.get("stage"))
                 return DocumentResponse(
                     status="success",
                     file_name=file.filename,
                     message="Document already processed. Use force_reprocess=true to reprocess.",
                 )
+            else:
+                logger.debug("No cached state found or file not fully processed")
 
         # save file temporary
         upload_dir = Path(config.UPLOAD_DIR)
         upload_dir.mkdir(parents=True, exist_ok=True)
         temp_path = upload_dir / Path(file.filename)
+        logger.debug("Saving file to temporary location: %s", temp_path)
 
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        logger.debug("File saved successfully to: %s", temp_path)
 
+        logger.debug("Creating DocumentController instance...")
         doc_controller = DocumentController(
             extractor=extractor, chunker=chunker, cache=cache
         )
+        logger.info("Processing document: extraction and chunking...")
         documents, state = doc_controller.create_documents(
             str(temp_path), file_hash=file_hash
         )
+        logger.debug("Document processing completed: %d documents created, stage: %s", 
+                    len(documents), state.stage.value)
 
         # Step 3: Embed & Store
         if state.stage != ProcessingStage.STORED:
+            logger.debug("Document not yet stored, proceeding with embedding and storage...")
             try:
-                db = next(get_db_sync())
-                db_controller = DatabaseController(db=db)
-                _ = db_controller.add_documents_to_db(documents, embeddings)
+                for db in get_db_sync():
+                    db_controller = DatabaseController(db=db)
+                    _ = db_controller.add_documents_to_db(documents, embeddings)
 
                 state.stage = ProcessingStage.STORED
                 state.updated_at = datetime.now(timezone.utc).isoformat()
@@ -123,7 +139,9 @@ async def upload_document(
                 # Update cache with validation
                 if cache:
                     success = cache.set(
-                        f"doc_state:{file_hash}", state.model_dump(), ttl=86400 * 7
+                        f"doc_state:{file_hash}",
+                        state.model_dump(mode="json"),
+                        ttl=86400 * 7,
                     )
                     if not success:
                         logger.warning(
@@ -138,8 +156,10 @@ async def upload_document(
 
             except Exception as e:
                 logger.error("Error storing documents: %s", str(e), exc_info=True)
-                
+                logger.debug("Failed to store %d documents for file_hash: %s", len(documents), file_hash[:16])
+
                 if cache:
+                    logger.debug("Updating cache with FAILED state...")
                     state.stage = ProcessingStage.FAILED
                     state.error_message = str(e)
                     state.updated_at = datetime.now(timezone.utc).isoformat()
@@ -155,13 +175,16 @@ async def upload_document(
         )
 
     except ValidationError as e:
+        logger.warning("Validation error in upload_document: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e)) from e
     except DocumentProcessingError as e:
+        logger.error("Document processing error: %s", str(e), exc_info=True)
         raise HTTPException(status_code=422, detail=str(e)) from e
     except DatabaseError as e:
+        logger.critical("Database error in upload_document: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.exception("Unexpected error in upload_document")
+        logger.critical("Unexpected error in upload_document: %s", str(e), exc_info=True)
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
         ) from e
@@ -173,15 +196,15 @@ async def delete_all_documents():
     """Endpoint to delete all documents from the database"""
 
     try:
-        db = next(get_db_sync())
-        db_controller = DatabaseController(db=db)
-        count = db_controller.delete_all_documents()
+        for db in get_db_sync():
+            db_controller = DatabaseController(db=db)
+            count = db_controller.delete_all_documents()
 
-        return DocumentResponse(
-            status="success",
-            file_name="",
-            message=f"Successfully deleted {count} documents from the database",
-        )
+            return DocumentResponse(
+                status="success",
+                file_name="",
+                message=f"Successfully deleted {count} documents from the database",
+            )
 
     except DatabaseError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -190,3 +213,24 @@ async def delete_all_documents():
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
         ) from e
+
+@timer
+@router.delete("/cache/clear")
+async def clear_cache(cache=Depends(get_cache)):
+    """Endpoint to clear all cache data"""
+
+    if not cache:
+        raise HTTPException(status_code=503, detail="Cache not available")
+    
+    try:
+
+        return DocumentResponse(
+            status="success",
+            file_name="",
+            message="Cache clearing requires manual Redis operation. "
+                   "Use redis-cli: KEYS doc_cache:* and DEL for each key.",
+        )
+    
+    except Exception as e:
+        logger.exception("Error clearing cache")
+        raise HTTPException(status_code=500, detail=str(e)) from e

@@ -16,7 +16,6 @@ from app.services.embedder.base import BaseEmbeddings
 from app.services.extractor.base import BaseExtractor
 from app.services.chunker.base import BaseChunker
 from app.services.llm.base import BaseLLM
-from app.services.cache.base import BaseCache
 from app.core.logger import setuplog
 from app.core.config import config
 
@@ -34,7 +33,15 @@ def get_embeddings() -> BaseEmbeddings:
     global _embeddings_instance
     if _embeddings_instance is None:
         logger.info("Initializing embeddings model (singleton)")
-        _embeddings_instance = get_embeddings_instance()
+        logger.debug("Embeddings type: %s, Model: %s", config.EMBEDDINGS_TYPE, config.MODEL_NAME)
+        try:
+            _embeddings_instance = get_embeddings_instance()
+            logger.debug("Embeddings instance created successfully")
+        except Exception as e:
+            logger.critical("Failed to initialize embeddings service: %s", str(e), exc_info=True)
+            raise
+    else:
+        logger.debug("Returning existing embeddings singleton instance")
     return _embeddings_instance
 
 
@@ -44,7 +51,15 @@ def get_extractor() -> BaseExtractor:
     global _extractor_instance
     if _extractor_instance is None:
         logger.info("Initializing extractor (singleton)")
-        _extractor_instance = get_extractor_instance()
+        logger.debug("Extractor type: %s", config.EXTRACTOR_TYPE)
+        try:
+            _extractor_instance = get_extractor_instance()
+            logger.debug("Extractor instance created successfully")
+        except Exception as e:
+            logger.critical("Failed to initialize extractor service: %s", str(e), exc_info=True)
+            raise
+    else:
+        logger.debug("Returning existing extractor singleton instance")
     return _extractor_instance
 
 
@@ -67,28 +82,40 @@ async def get_db() -> AsyncGenerator[BaseDB, None]:
     """Get database instance with lifecycle management"""
 
     db = get_db_instance()
+    logger.debug("Getting database instance: %s", config.DATABASE_TYPE)
     try:
         db.connect()
         logger.info("Database connection established")
+        logger.debug("Database connection successful for type: %s", config.DATABASE_TYPE)
         yield db
 
+    except Exception as e:
+        logger.critical("Database connection failed: %s", str(e), exc_info=True)
+        raise
     finally:
         db.disconnect()
         logger.info("Database connection closed")
+        logger.debug("Database cleanup completed")
 
 
 def get_db_sync() -> Generator[BaseDB, None, None]:
     """Get database instance with lifecycle management (sync)"""
 
     db = get_db_instance()
+    logger.debug("Getting database instance (sync): %s", config.DATABASE_TYPE)
     try:
         db.connect()
         logger.info("Database connection established")
+        logger.debug("Database connection successful for type: %s", config.DATABASE_TYPE)
         yield db
 
+    except Exception as e:
+        logger.critical("Database connection failed: %s", str(e), exc_info=True)
+        raise
     finally:
         db.disconnect()
         logger.info("Database connection closed")
+        logger.debug("Database cleanup completed")
 
 
 def get_cache() -> Optional[BaseCache]:
@@ -98,16 +125,21 @@ def get_cache() -> Optional[BaseCache]:
 
     # Return None if caching is disabled
     if not config.ENABLE_CACHING:
+        logger.debug("Caching is disabled in configuration")
         return None
 
     if _cache_instance is None:
+        logger.debug("Initializing cache instance: %s", config.CACHE_TYPE)
         try:
-
             _cache_instance = get_cache_instance()
             logger.info("Standalone cache instance initialized (singleton)")
+            logger.debug("Cache instance created successfully")
 
         except Exception as e:
-            logger.error("Failed to initialize cache: %s", str(e), exc_info=True)
+            logger.warning("Failed to initialize cache service: %s", str(e), exc_info=True)
+            # Don't raise - cache is optional, but log as warning
             return None
+    else:
+        logger.debug("Returning existing cache singleton instance")
 
     return _cache_instance

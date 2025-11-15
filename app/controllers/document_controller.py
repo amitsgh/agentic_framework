@@ -139,10 +139,15 @@ class DocumentController:
     ) -> tuple[List[Document], ProcessingState]:
         """Parse document and return Document Object"""
 
+        logger.debug("create_documents called with file_paths: %s, file_hash: %s", 
+                    file_paths if isinstance(file_paths, str) else len(file_paths), file_hash[:16])
+        
         if not file_paths:
+            logger.error("No file paths provided to create_documents")
             raise DocumentProcessingError("No file paths provided")
 
         if not file_hash:
+            logger.error("File hash is required for state tracking")
             raise DocumentProcessingError("File hash is required for state tracking")
 
         if isinstance(file_paths, str):
@@ -189,10 +194,13 @@ class DocumentController:
 
             if extracted_documents is None:
                 logger.info("Extracting documents...")
+                logger.debug("Calling extractor.extract() for %d file(s)", len(file_paths))
                 extracted_documents = self.extractor.extract(file_paths)
 
                 if not extracted_documents:
+                    logger.error("Extractor returned no data for file_paths: %s", file_paths)
                     raise DocumentProcessingError("Extractor returned no data")
+                logger.debug("Extraction successful: %d documents extracted", len(extracted_documents))
 
                 # Cache extracted docs for reference (even though we can't easily deserialize)
                 self._save_extracted_docs(file_hash, extracted_documents)
@@ -224,7 +232,10 @@ class DocumentController:
 
             if chunked_documents is None:
                 logger.info("Chunking documents...")
+                logger.debug("Calling chunker.chunk() for %d extracted documents", 
+                           len(extracted_documents) if extracted_documents else 0)
                 if extracted_documents is None:
+                    logger.error("No extracted documents available for chunking")
                     raise DocumentProcessingError(
                         "No extracted documents available for chunking"
                     )
@@ -232,7 +243,9 @@ class DocumentController:
                 chunked_documents = self.chunker.chunk(extracted_documents)
 
                 if not chunked_documents:
+                    logger.error("Chunker returned no documents")
                     raise DocumentProcessingError("Chunker returned no documents")
+                logger.debug("Chunking successful: %d chunks created", len(chunked_documents))
 
                 self._save_chunked_docs(file_hash, chunked_documents)
                 state.stage = ProcessingStage.CHUNKED
@@ -249,12 +262,16 @@ class DocumentController:
 
             return chunked_documents, state
 
-        except DocumentProcessingError:
+        except DocumentProcessingError as e:
+            logger.error("Document processing error: %s", str(e), exc_info=True)
+            logger.debug("Document processing failed for file_hash: %s", file_hash[:16])
             state.stage = ProcessingStage.FAILED
+            state.error_message = str(e)
             self._save_state(state)
             raise
         except Exception as e:
-            logger.error("Parsing error for %s: %s", file_paths, str(e), exc_info=True)
+            logger.critical("CRITICAL: Parsing error for %s: %s", file_paths, str(e), exc_info=True)
+            logger.debug("Critical parsing error for file_hash: %s", file_hash[:16])
             state.stage = ProcessingStage.FAILED
             state.error_message = str(e)
             self._save_state(state)

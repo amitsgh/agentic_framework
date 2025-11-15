@@ -15,6 +15,7 @@ async def framework_exception_handler(req: Request, exc: FrameworkException):
     """Handle framework exception"""
 
     logger.error("Framework error: %s", exc, exc_info=True)
+    logger.debug("Framework error occurred at path: %s, method: %s", req.url.path, req.method)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": "Framework Error", "message": str(exc), "path": req.url.path},
@@ -25,6 +26,7 @@ async def validation_exception_handler(req: Request, exc: RequestValidationError
     """Handle validation errors"""
 
     logger.warning("Validation error: %s", exc.errors())
+    logger.debug("Validation error at path: %s, method: %s, errors: %s", req.url.path, req.method, exc.errors())
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -47,7 +49,8 @@ async def http_exception_handler(req: Request, exc: StarletteHTTPException):
 async def general_exception_handler(req: Request, exc: Exception):
     """Handle unexpected exceptions"""
 
-    logger.exception("Unexpected error: %d", exc)
+    logger.critical("Unexpected error occurred: %s", str(exc), exc_info=True)
+    logger.debug("Critical error at path: %s, method: %s", req.url.path, req.method)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
