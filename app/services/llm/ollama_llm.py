@@ -6,9 +6,9 @@ import ollama
 from ollama import Client
 
 from app.services.llm.base import BaseLLM
-from app.core.exceptions.base import LLMError
-from app.core.config import config
-from app.core.logger import setuplog
+from app.exceptions import LLMError
+from app.config import config
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 

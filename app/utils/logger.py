@@ -6,7 +6,7 @@ from logging import FileHandler
 from pathlib import Path
 from colorlog import ColoredFormatter
 
-from app.core.config import config
+from app.config import config
 
 
 def setuplog(
@@ -58,7 +58,7 @@ def setuplog(
         stream_handler.setLevel(level)
         stream_handler.setFormatter(console_formatter)
         logger.addHandler(stream_handler)
-    
+
     if not has_file:
         file_handler = FileHandler(
             filename=str(file_path),

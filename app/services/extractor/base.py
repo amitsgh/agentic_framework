@@ -16,7 +16,7 @@ class BaseExtractor(ABC):
         """Returns a list of file extension parser can handle"""
 
     @abstractmethod
-    def extract(
+    def extract_data(
         self, data: Union[str, List[str]]
-    ) -> Union[List[Document], List[DoclingDocument]]:
+    ) -> List[Document]:
         """Extract input data and return structured output"""

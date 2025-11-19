@@ -4,8 +4,8 @@ from typing import Type
 
 from app.services.db.base import BaseDB
 from app.services.db.redis_db import RedisDB
-from app.core.config import config
-from app.core.logger import setuplog
+from app.config import config
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

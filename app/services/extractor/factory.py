@@ -4,8 +4,8 @@ from typing import Type
 
 from app.services.extractor.base import BaseExtractor
 from app.services.extractor.docling_extractor import DoclingExtractor
-from app.core.config import config
-from app.core.logger import setuplog
+from app.config import config
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

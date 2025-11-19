@@ -5,8 +5,8 @@ import requests
 
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from app.core.config import config
-from app.core.logger import setuplog
+from app.config import config
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

@@ -9,9 +9,9 @@ import redis
 from app.models.document_model import Document, DocumentMetadata
 from app.services.db.base import BaseDB
 from app.services.embedder.base import BaseEmbeddings
-from app.core.exceptions.base import DatabaseError, ValidationError
-from app.core.config import config
-from app.core.logger import setuplog
+from app.exceptions.base import DatabaseError, ValidationError
+from app.config import config
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

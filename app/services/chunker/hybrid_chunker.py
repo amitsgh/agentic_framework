@@ -13,8 +13,8 @@ from transformers import AutoTokenizer
 
 from app.services.chunker.base import BaseChunker
 from app.models.document_model import BoundingBox, Document, DocumentMetadata
-from app.core.exceptions.base import DocumentProcessingError
-from app.core.logger import setuplog
+from app.exceptions.base import DocumentProcessingError
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

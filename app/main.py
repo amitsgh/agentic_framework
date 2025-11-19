@@ -9,16 +9,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependency import get_embeddings, get_extractor, get_cache
 from app.router import register_routers
-from app.core.config import config
-from app.core.exceptions.error_handler import (
+from app.config import config
+from app.exceptions.error_handler import (
     framework_exception_handler,
     validation_exception_handler,
     http_exception_handler,
     general_exception_handler,
 )
 
-from app.core.exceptions.base import FrameworkException
-from app.core.logger import setuplog
+from app.exceptions.base import FrameworkException
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

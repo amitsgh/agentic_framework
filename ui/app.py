@@ -9,7 +9,7 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from app.core.config import config
+from app.config import config
 from ui.services.document_service import upload_document, delete_all_documents
 from ui.services.chat_service import chat_stream
 

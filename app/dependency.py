@@ -16,8 +16,8 @@ from app.services.embedder.base import BaseEmbeddings
 from app.services.extractor.base import BaseExtractor
 from app.services.chunker.base import BaseChunker
 from app.services.llm.base import BaseLLM
-from app.core.logger import setuplog
-from app.core.config import config
+from app.logger import setuplog
+from app.config import config
 
 logger = setuplog(__name__)
 

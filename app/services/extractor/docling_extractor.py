@@ -10,8 +10,8 @@ from docling.document_converter import DocumentConverter, PdfFormatOption, Forma
 from docling_core.types.doc.document import DoclingDocument
 
 from app.services.extractor.base import BaseExtractor
-from app.core.exceptions.base import DocumentProcessingError, ValidationError
-from app.core.logger import setuplog
+from app.exceptions import DocumentProcessingError, ValidationError
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 
@@ -46,7 +46,7 @@ class DoclingExtractor(BaseExtractor):
 
         return DocumentConverter(format_options=format_options_typed)
 
-    def extract(self, file_paths: Union[str, List[str]]) -> List[DoclingDocument]:
+    def extract_data(self, file_paths: Union[str, List[str]]) -> List[DoclingDocument]:
         """Extracting documents using Docling"""
 
         try:

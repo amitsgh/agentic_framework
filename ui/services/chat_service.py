@@ -3,8 +3,8 @@
 from typing import Iterator
 import requests
 
-from app.core.config import config
-from app.core.logger import setuplog
+from app.config import config
+from app.logger import setuplog
 
 logger = setuplog(__name__)
 

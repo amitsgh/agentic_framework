@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     REDIS_DOC_KEY_PREFIX: str = "doc:"
     REDIS_DOC_KEY_PATTERN: str = "doc:*"
 
+    # MinIO Configuration
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET_NAME: str = "artifacts"
+    MINIO_SECURE: bool = False
+
     # Logging Configuration
     LOG_LEVEL: int = logging.DEBUG  # Can be set via env as: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
