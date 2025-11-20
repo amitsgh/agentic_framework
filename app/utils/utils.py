@@ -11,6 +11,9 @@ from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 
+# Hardcoded allowed file extensions
+ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"]
+
 
 def file_validation(file: UploadFile) -> None:
     """Validate uploaded file"""
@@ -18,10 +21,10 @@ def file_validation(file: UploadFile) -> None:
         raise ValidationError("No filename provided")
 
     file_ext = Path(file.filename).suffix.lower()
-    if file_ext not in config.ALLOWED_EXTENSIONS:
+    if file_ext not in ALLOWED_EXTENSIONS:
         raise ValidationError(
             f"File extension {file_ext} not allowed. "
-            f"Allowed: {', '.join(config.ALLOWED_EXTENSIONS)}"
+            f"Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
         )
 
     if hasattr(file.file, "seek") and hasattr(file.file, "tell"):

@@ -5,7 +5,7 @@ from typing import Type
 from app.services.embedder.base import BaseEmbeddings
 from app.services.embedder.huggingface_embedder import HuggingFaceEmbeddigns
 from app.config import config
-from app.logger import setuplog
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 

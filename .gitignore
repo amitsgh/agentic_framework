@@ -98,6 +98,9 @@ alembic/versions/__pycache__/
 # Logs / temp
 tmp/
 temp/
+*.log
+test_output.log
+tests/test_output.log
 
 # cache folder
 cache

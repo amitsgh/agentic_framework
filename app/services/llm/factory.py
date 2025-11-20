@@ -5,7 +5,7 @@ from typing import Type
 from app.services.llm.base import BaseLLM
 from app.services.llm.ollama_llm import OllamaModel
 from app.config import config
-from app.logger import setuplog
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 

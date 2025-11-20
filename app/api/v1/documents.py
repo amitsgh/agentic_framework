@@ -20,6 +20,7 @@ from app.exceptions import (
     ValidationError,
 )
 from app.utils.logger import setuplog
+from app.dependency import get_storage
 
 logger = setuplog(__name__)
 
@@ -30,10 +31,11 @@ def _create_document_controller(
     extractor=Depends(get_extractor),
     chunker=Depends(get_chunker),
     cache=Depends(get_cache),
+    storage=Depends(get_storage),
 ) -> Tuple[type[DocumentController], DocumentPipeline, StateManager]:
     """Create document controller factory (without DB - DB managed in route)"""
     state_manager = StateManager(cache)
-    pipeline = DocumentPipeline(extractor, chunker, state_manager)
+    pipeline = DocumentPipeline(extractor, chunker, state_manager, storage)
     
     # Note: DB and repository will be created in the route handler to properly manage lifecycle
     # This is a factory that returns components needed to create controller with DB
@@ -75,7 +77,7 @@ async def upload_document(
     forced_reprocess: bool = Query(default=False),
     controller_factory=Depends(_create_document_controller),
     embeddings=Depends(get_embeddings),
-    db=Depends(get_db_sync),
+    storage=Depends(get_storage),  # Add storage dependency
 ):
     """Upload and process document"""
     try:
@@ -91,25 +93,29 @@ async def upload_document(
         # Save file temporarily
         upload_dir = Path(config.UPLOAD_DIR)
         upload_dir.mkdir(parents=True, exist_ok=True)
-        temp_path = upload_dir / Path(file.filename)  # type: ignore
+        file_suffix = Path(file.filename).suffix if file.filename else ""  # type: ignore
+        temp_path = upload_dir / f"{file_hash}{file_suffix}"  # Use hash-based name
         
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
         # Create controller with proper DB lifecycle management
         DocumentControllerClass, pipeline, state_manager = controller_factory
-        for db_instance in db:
+        for db_instance in get_db_sync():
             document_repository = DocumentRepository(db_instance)
-            controller = DocumentControllerClass(pipeline, state_manager, document_repository)
+            controller = DocumentControllerClass(
+                pipeline, state_manager, document_repository, storage
+            )
             
             # Process document
             documents, state = controller.upload(
                 file_path=str(temp_path),
                 file_hash=file_hash,
+                filename=file.filename,  # type: ignore
                 embeddings=embeddings,
                 forced_reprocess=forced_reprocess,
             )
-            break  # Exit after first iteration to ensure cleanup
+            break
         
         # Generate response
         message = _generate_response_message(state, documents, file_hash)
@@ -134,15 +140,15 @@ async def upload_document(
 @router.delete("/delete-all")
 async def delete_all_documents(
     controller_factory=Depends(_create_document_controller),
-    db=Depends(get_db_sync),
+    storage=Depends(get_storage),
 ):
     """Delete all documents from database"""
     try:
         # Create controller with proper DB lifecycle management
         DocumentControllerClass, pipeline, state_manager = controller_factory
-        for db_instance in db:
+        for db_instance in get_db_sync():
             document_repository = DocumentRepository(db_instance)
-            controller = DocumentControllerClass(pipeline, state_manager, document_repository)
+            controller = DocumentControllerClass(pipeline, state_manager, document_repository, storage)
             
             count = controller.delete_all()
             return DocumentResponse(

@@ -10,15 +10,16 @@ from minio.error import S3Error
 
 from app.config import config
 from app.utils.logger import setuplog
+from app.services.storage.base import BaseStorage
 
 
 logger = setuplog(__name__)
 
 
-class MinIOStorage:
+class MinIOStorage(BaseStorage):
     """MinIO storage service for pesistent artifacts"""
 
-    def __int__(
+    def __init__(
         self,
         endpoint: Optional[str] = None,
         access_key: Optional[str] = None,

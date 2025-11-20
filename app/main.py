@@ -4,21 +4,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.dependency import get_embeddings, get_extractor, get_cache
+from app.dependency import (
+    get_embeddings,
+    get_extractor,
+    get_cache,
+    get_storage,
+    get_chunker,
+    get_llm,
+    get_db_sync,
+)
 from app.router import register_routers
 from app.config import config
-from app.exceptions.error_handler import (
-    framework_exception_handler,
-    validation_exception_handler,
-    http_exception_handler,
-    general_exception_handler,
-)
-
-from app.exceptions.base import FrameworkException
-from app.logger import setuplog
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 
@@ -36,20 +34,45 @@ async def lifespan(app: FastAPI):
     logger.debug("Initializing application dependencies...")
 
     try:
+        # Core document processing services
         logger.debug("Validating embeddings service...")
-        embeddings = get_embeddings()
+        _ = get_embeddings()  # Validate service initialization
         logger.info("Embeddings service initialized successfully")
 
         logger.debug("Validating extractor service...")
-        extractor = get_extractor()
+        _ = get_extractor()  # Validate service initialization
         logger.info("Extractor service initialized successfully")
 
+        logger.debug("Validating chunker service...")
+        _ = get_chunker()  # Validate service initialization
+        logger.info("Chunker service initialized successfully")
+
+        # Storage services
+        logger.debug("Validating MinIO storage service...")
+        _ = get_storage()  # Validate service initialization
+        logger.info("MinIO storage service initialized successfully")
+
+        # Cache service (optional)
         logger.debug("Validating cache service...")
         cache = get_cache()
         if cache:
             logger.info("Cache service initialized successfully")
         else:
             logger.warning("Cache service is disabled or unavailable")
+
+        # Database service (for vector storage)
+        logger.debug("Validating database service...")
+        db_gen = get_db_sync()
+        db = next(db_gen)
+        try:
+            logger.info("Database service initialized successfully")
+        finally:
+            db.disconnect()
+
+        # LLM service (critical for chat)
+        logger.debug("Validating LLM service...")
+        _ = get_llm()  # Validate service initialization
+        logger.info("LLM service initialized successfully")
 
         logger.info("All critical services validated during startup")
 
@@ -82,22 +105,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_exception_handler(
-    FrameworkException,
-    framework_exception_handler,  # pyright: ignore[reportArgumentType]
-)
-app.add_exception_handler(
-    RequestValidationError,
-    validation_exception_handler,  # pyright: ignore[reportArgumentType]
-)
-app.add_exception_handler(
-    StarletteHTTPException,
-    http_exception_handler,  # pyright: ignore[reportArgumentType]
-)
-app.add_exception_handler(Exception, general_exception_handler)
-
 register_routers(app)
-
 
 @app.get("/health")
 async def health_check():

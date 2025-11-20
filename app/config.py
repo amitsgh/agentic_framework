@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     """Configuration class"""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+        env_file=".env", 
+        env_file_encoding="utf-8", 
+        case_sensitive=False, 
+        extra="ignore"
     )
 
     # Factory Configuration
@@ -30,7 +33,10 @@ class Settings(BaseSettings):
     # Temp File Configuration
     UPLOAD_DIR: Path = Path(__file__).resolve().parent.parent / "tmp" / "uploads"
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
-    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".txt", ".md"]
+    
+    # Ignored field - kept for backward compatibility with .env files
+    # ALLOWED_EXTENSIONS is now hardcoded in app/utils/utils.py
+    ALLOWED_EXTENSIONS: str = ""  # Ignored - not used
 
     # Redis Configuration
     REDIS_URL: str = "redis://localhost:6379"
@@ -68,6 +74,22 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = 5
     RAG_MIN_SCORE: float = 0.7
 
+    # Advanced RAG Services Configuration
+    RERANKER_TYPE: str = "llm"  # "llm" or "rag_fusion"
+    QUERY_TRANSLATOR_TYPE: str = "multi_query"  # "multi_query", "decomposition", "hyde", "step_back"
+    ROUTER_TYPE: str = "llm"  # "llm" or "semantic"
+    REFINER_TYPE: str = "crag"
+    GRAPH_RAG_TYPE: str = "llm"
+    RAPTOR_TYPE: str = "llm"
+    
+    # Advanced RAG Feature Flags
+    ENABLE_QUERY_TRANSLATION: bool = True
+    ENABLE_ROUTING: bool = True
+    ENABLE_RERANKING: bool = True
+    ENABLE_REFINEMENT: bool = True
+    ENABLE_GRAPH_RAG: bool = False
+    ENABLE_RAPTOR: bool = False
+
     # Performance Configuration
     ENABLE_CACHING: bool = True
     CACHE_TTL: int = 3600
@@ -87,8 +109,20 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = "artifacts"
     MINIO_SECURE: bool = False
 
+    # Neo4j Configuration
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "password"
+    NEO4J_DATABASE: str = "neo4j"
+
     # Logging Configuration
     LOG_LEVEL: int = logging.DEBUG  # Can be set via env as: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+    @field_validator("ALLOWED_EXTENSIONS", mode="before")
+    @classmethod
+    def ignore_allowed_extensions(cls, v):
+        """Ignore ALLOWED_EXTENSIONS from env - now hardcoded in utils"""
+        return ""  # Always return empty string, field is not used
 
     @field_validator("LOG_LEVEL", mode="before")
     @classmethod

@@ -3,9 +3,14 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from app.dependency import get_llm, get_db_sync, get_embeddings
+from app.dependency import (
+    get_llm, get_db_sync, get_embeddings,
+    get_reranker, get_query_translator, get_router,
+    get_refiner, get_graph_rag
+)
 from app.controllers.chat_controller import ChatController
 from app.repositories.document_repository import DocumentRepository
+from app.services.rag.orchestrator import AdvancedRAGOrchestrator
 from app.config import config
 from app.exceptions import LLMError, ValidationError, ConfigurationError
 from app.utils.logger import setuplog
@@ -30,8 +35,24 @@ def chat(
             embeddings = get_embeddings()
             for db in get_db_sync():
                 document_repository = DocumentRepository(db)
+                
+                # Create advanced RAG orchestrator with all services
+                rag_orchestrator = AdvancedRAGOrchestrator(
+                    document_repository=document_repository,
+                    embeddings=embeddings,
+                    query_translator=get_query_translator(),
+                    router=get_router(),
+                    reranker=get_reranker(),
+                    refiner=get_refiner(),
+                    graph_rag=get_graph_rag(),
+                )
+                
                 controller = ChatController(
-                    llm=llm, document_repository=document_repository, embeddings=embeddings, use_rag=True
+                    llm=llm,
+                    document_repository=document_repository,
+                    embeddings=embeddings,
+                    rag_orchestrator=rag_orchestrator,
+                    use_rag=True
                 )
                 return StreamingResponse(
                     controller.chat_stream(query),

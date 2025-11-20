@@ -14,7 +14,7 @@ logger = setuplog(__name__)
 class StateManager:
     """Manages document processing state"""
 
-    def __init__(self, cache: BaseCache):
+    def __init__(self, cache: Optional[BaseCache]):
         self.cache_repository = CacheRepository(cache)
         self.cache = cache
         self.processing_ttl = 86400 * 7  # 7 days

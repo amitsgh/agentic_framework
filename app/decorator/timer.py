@@ -4,7 +4,7 @@ import time
 import asyncio
 from functools import wraps
 
-from app.logger import setuplog
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 

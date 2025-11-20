@@ -5,7 +5,7 @@ from typing import Type
 from app.services.chunker.base import BaseChunker
 from app.services.chunker.hybrid_chunker import DoclingHybridChunker
 from app.config import config
-from app.logger import setuplog
+from app.utils.logger import setuplog
 
 logger = setuplog(__name__)
 
